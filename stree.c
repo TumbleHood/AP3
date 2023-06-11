@@ -26,6 +26,7 @@ static int dirTree(const char *fpath, const struct stat *sb, int typeflag, struc
         }
     }
 
+    // count number of directories and files (don't count given path)
     if (ftwbuf->level != 0) {
         if (info.file_type == 'd') {
             dir_num += 1;
@@ -68,9 +69,24 @@ static int dirTree(const char *fpath, const struct stat *sb, int typeflag, struc
     strcpy(info.size_str, size_str);
 
     // file name
-    info.file_name = (char*)malloc(sizeof(&fpath[ftwbuf->base]));
-    strcpy(info.file_name, &fpath[ftwbuf->base]);
+    if (info.file_type == 'l') { //if it's a symlink
+        char *path = (char*)malloc(sb->st_size + 1);
+        ssize_t bytesRead = readlink(fpath, path, sb->st_size + 1);
+        path[bytesRead] = '\0';
 
+        info.file_name = (char*)malloc(strlen(&fpath[ftwbuf->base]) + 4 + strlen(path));
+        strncpy(info.file_name, &fpath[ftwbuf->base], strlen(&fpath[ftwbuf->base]));
+        strncpy(info.file_name + strlen(&fpath[ftwbuf->base]), " -> ", 4);
+        strncpy(info.file_name + strlen(&fpath[ftwbuf->base]) + 4, path, strlen(path));
+        strncpy(info.file_name + strlen(&fpath[ftwbuf->base]) + 4 + strlen(path), "\0", 1);
+
+        free(path);
+    } else {
+        info.file_name = (char*)malloc(sizeof(&fpath[ftwbuf->base]));
+        strcpy(info.file_name, &fpath[ftwbuf->base]);
+    }
+
+    // add info to linked list
     if (head == NULL){
         head = (node_t*)malloc(sizeof(node_t));
         head->info = info;
@@ -89,6 +105,7 @@ static int dirTree(const char *fpath, const struct stat *sb, int typeflag, struc
 }
 
 int hasSibling(node_t **curr) {
+    // check if there are more files in current directory
     node_t *curr_temp = (*curr)->next;
     while (curr_temp != NULL) {
         if (curr_temp->level == (*curr)->level){
@@ -100,6 +117,7 @@ int hasSibling(node_t **curr) {
 }
 
 int hasUncle(node_t **curr, int uncle_level) {
+    // check if there are parent directories in that level
     node_t *curr_temp = (*curr)->next;
     while (curr_temp != NULL) {
         if (curr_temp->level == uncle_level){
@@ -111,6 +129,7 @@ int hasUncle(node_t **curr, int uncle_level) {
 }
 
 void printTree() {
+    // print the tree just like "tree -pugs"
     temp = head;
     while (temp != NULL){    
         // ├ ─ └ │
